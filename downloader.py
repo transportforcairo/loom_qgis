@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-downloader.py — Download pre-built LOOM binaries from the loom-binaries repo.
+downloader.py — Download pre-built LOOM binaries from the loom_binaries repo.
 
 Binaries are stored as ZIP files in the root of:
-  https://github.com/transportforcairo/loom-binaries
+  https://github.com/transportforcairo/loom_binaries
 
 Files are downloaded via raw.githubusercontent.com — no API, no tokens,
 no releases required. Just a direct file download.
@@ -86,7 +86,10 @@ def _download_url() -> str:
 
 
 def _download_file(url: str, dest_path: str, progress_cb: Optional[ProgressCB]) -> None:
-    req = urllib.request.Request(url, headers={"User-Agent": "qgis-loom-plugin/1.0"})
+    if not url.lower().startswith("https://"):
+        raise ValueError(f"Refusing to download from non-https URL: {url}")
+
+    req = urllib.request.Request(url, headers={"User-Agent": "loom_qgis/1.0.0"})
     with urllib.request.urlopen(req, timeout=120) as resp:
         total      = resp.headers.get("Content-Length")
         total      = int(total) if total else None

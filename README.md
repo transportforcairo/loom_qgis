@@ -46,21 +46,21 @@ All stages run as `subprocess.PIPE` chains — no shell redirection, works ident
 
 ## Binaries
 
-Pre-built binaries are hosted at [transportforcairo/loom-binaries](https://github.com/transportforcairo/loom-binaries) and downloaded automatically on first run. To re-download or update, go to the plugin's **Diagnostics tab → Re-download binaries**.
+Pre-built binaries are hosted at [transportforcairo/loom_binaries](https://github.com/transportforcairo/loom_binaries) and downloaded automatically on first run. To re-download or update, go to the plugin's **Diagnostics tab → Re-download binaries**.
 
 ---
 
 ## Repository structure
 
 ```
-qgis-loom-plugin/
+loom_qgis/
 ├── plugin/
 │   ├── __init__.py            QGIS classFactory entry point
 │   ├── loom_plugin.py         Plugin lifecycle (menu, toolbar, first-run check)
 │   ├── dialog.py              Main Qt dialog (Input / Options / Output / Diagnostics)
 │   ├── runner.py              Subprocess pipeline runner
 │   ├── binary_resolver.py     OS detection and binary path resolution
-│   ├── downloader.py          Binary downloader (pulls from loom-binaries repo)
+│   ├── downloader.py          Binary downloader (pulls from loom_binaries repo)
 │   ├── download_dialog.py     First-run download UI
 │   ├── metadata.txt           QGIS plugin metadata
 │   ├── bin/

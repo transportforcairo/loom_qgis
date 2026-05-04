@@ -36,8 +36,7 @@ def generate(svg_content: str, output_path: str) -> None:
         parts = [float(x.strip()) for x in m.group(1).split(',')]
         min_lon, min_lat, max_lon, max_lat = parts
     else:
-        # Fallback: Abidjan rough bounds
-        min_lon, min_lat, max_lon, max_lat = -4.1, 5.28, -3.90, 5.45
+          raise ValueError("SVG is missing latlng-box attribute; cannot geo-register the webmap.")
 
     # ── Extract viewBox dimensions ─────────────────────────────────────
     vb = re.search(r'viewBox=["\']([^"\']+)["\']', svg)
@@ -55,11 +54,11 @@ def generate(svg_content: str, output_path: str) -> None:
     center_lat = (min_lat + max_lat) / 2
 
     html = f"""<!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Réseau LOOM – Webmap</title>
+<title>LOOM Transit Map – Webmap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet"/>
 <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
@@ -187,36 +186,17 @@ html, body {{ width: 100%; height: 100%; overflow: hidden; background: var(--bg)
 <div id="map"></div>
 <div id="svg-overlay"><div id="svg-wrapper">{svg}</div></div>
 
-<div id="header">
-  <div class="logos">
-    <div class="logo-wrap" id="amuga-logo-wrap">
-      <img src="https://media.licdn.com/dms/image/v2/C4E0BAQGi1I7tnEjaGg/company-logo_200_200/company-logo_200_200/0/1643099720996/amugaci_logo?e=2147483647&v=beta&t=K_eBcVXBqbJGghwyBBNMfUnafggSKOWAynwwlGaIjaI" alt="AMUGA"
-           onerror="this.parentElement.classList.add('fallback'); this.parentElement.innerHTML='AMUGA';"/>
-    </div>
-    <div class="logo-divider"></div>
-    <div class="logo-wrap" id="sotra-logo-wrap">
-      <img src="https://dgpe.gouv.ci/fr/wp-content/uploads/2022/12/sotra.jpg" alt="SOTRA"
-           onerror="this.parentElement.classList.add('fallback'); this.parentElement.innerHTML='SOTRA';"/>
-    </div>
-  </div>
-  <div class="title-block">
-    <h1>Réseau LOOM</h1>
-    <p>Grand Abidjan · Réseau complet</p>
-  </div>
-</div>
-
 <div id="legend">
-  <div class="leg-title">Légende</div>
-  <div class="leg-row"><div class="leg-line" style="background:#0cf370"></div>Lignes principales</div>
-  <div class="leg-row"><div class="leg-line" style="background:#630cf3"></div>Connexions internes</div>
-  <div class="leg-row"><div class="leg-dot" style="background:#fff"></div>Arrêts</div>
+  <div class="leg-title">Legend</div>
+  <div class="leg-row"><div class="leg-line" style="background:#0cf370"></div>Lines</div>
+  <div class="leg-row"><div class="leg-dot" style="background:#fff"></div>Stops</div>
 </div>
 
 <div id="basemap-switcher">
-  <div class="bm-label">Fond de carte</div>
-  <button class="bm-btn active" data-style="dark"    onclick="switchBasemap(this)">Nuit</button>
-  <button class="bm-btn"        data-style="streets" onclick="switchBasemap(this)">Rues</button>
-  <button class="bm-btn"        data-style="light"   onclick="switchBasemap(this)">Jour</button>
+  <div class="bm-label">Basemap</div>
+  <button class="bm-btn active" data-style="dark"    onclick="switchBasemap(this)">Dark</button>
+  <button class="bm-btn"        data-style="streets" onclick="switchBasemap(this)">Streets</button>
+  <button class="bm-btn"        data-style="light"   onclick="switchBasemap(this)">Light</button>
 </div>
 
 <div id="zoom-ctrl">
@@ -226,7 +206,7 @@ html, body {{ width: 100%; height: 100%; overflow: hidden; background: var(--bg)
 
 <div id="tooltip">
   <div class="tt-inner">
-    <div class="tt-type">Arrêt</div>
+    <div class="tt-type">Stop</div>
     <div class="tt-name" id="tt-name"></div>
   </div>
 </div>
