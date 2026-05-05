@@ -26,6 +26,8 @@ import urllib.request
 import zipfile
 from typing import Callable, Optional
 
+from urllib.parse import urlparse
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -52,6 +54,8 @@ _PLATFORM_SUBDIR = {
     "Linux":   "linux",
 }
 
+ALLOWED_SCHEMES = {"http", "https"}
+
 # ---------------------------------------------------------------------------
 # Progress callback: (bytes_downloaded, total_bytes_or_None, message)
 # ---------------------------------------------------------------------------
@@ -62,6 +66,16 @@ ProgressCB = Callable[[int, Optional[int], str], None]
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _validate_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in ALLOWED_SCHEMES:
+        raise ValueError(
+            f"Refusing to open URL with scheme {parsed.scheme!r}; "
+            f"only {sorted(ALLOWED_SCHEMES)} allowed."
+        )
+    if not parsed.netloc:
+        raise ValueError(f"URL missing host: {url!r}")
+    
 def _plugin_dir() -> str:
     return os.path.dirname(os.path.abspath(__file__))
 
@@ -88,9 +102,10 @@ def _download_url() -> str:
 def _download_file(url: str, dest_path: str, progress_cb: Optional[ProgressCB]) -> None:
     if not url.lower().startswith("https://"):
         raise ValueError(f"Refusing to download from non-https URL: {url}")
-
+    
+    _validate_url(url)
     req = urllib.request.Request(url, headers={"User-Agent": "loom_qgis/1.0.0"})
-    with urllib.request.urlopen(req, timeout=120) as resp:
+    with urllib.request.urlopen(req, timeout=120) as resp:  # nosec B310 - scheme validated above
         total      = resp.headers.get("Content-Length")
         total      = int(total) if total else None
         downloaded = 0
