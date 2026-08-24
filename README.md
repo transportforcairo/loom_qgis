@@ -75,6 +75,13 @@ loom_qgis/
 
 ---
 
+## Documentation
+
+More details are available in the **User Guide (PDF)**:  
+[**loom_qgis_user_guide.pdf**](https://github.com/transportforcairo/loom_qgis/blob/main/loom_qgis_user_guide.pdf)
+
+---
+
 ## Attribution
 
 This plugin uses [LOOM](https://github.com/ad-freiburg/loom), developed by Hannah Bast, Patrick Brosi, and Sabine Storandt at the University of Freiburg, licensed under GPL-3.0. Windows port by [Transport for Cairo](https://transportforcairo.com), 2026.
