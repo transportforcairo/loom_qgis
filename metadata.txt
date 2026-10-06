@@ -3,11 +3,15 @@ name=LOOM Transit Map Generator
 qgisMinimumVersion=3.16
 qgisMaximumVersion=4.99
 description=Generate schematic and geographically accurate transit maps using the LOOM suite, directly inside QGIS. No command-line knowledge required.
-version=1.1.1
+version=1.2.0
 author=Transport for Cairo
 email=info@transportforcairo.com
 about=This plugin wraps the LOOM open-source transit map generation suite (github.com/ad-freiburg/loom, © University of Freiburg, GPL-3.0) with a cross-platform Qt GUI. It supports GeoJSON and GTFS inputs, geographic and schematic rendering (octilinear/orthoradial), and runs on Windows (x64), macOS (Apple Silicon) and Linux (x64) with QGIS 3 and QGIS 4. Pre-built, self-contained LOOM binaries are downloaded on first use. Windows port by Transport for Cairo (transportforcairo.com), 2026.
 changelog=
+    1.2.0
+    - Transport modes for GTFS input are now checkboxes: pick any combination (e.g. bus + tram), or keep "All modes"
+    - Clear message when the feed has no routes for the selected modes
+    - Layer filter uses the QGIS 4 enum name (plugin repository Qt6 check)
     1.1.1
     - Output SVG and web map now open through Qt (no external commands), and the plugin only ever launches the LOOM tools themselves (plugin repository security scan)
     - Includes all 1.1.0 changes below (1.1.0 was not published on the plugin repository)

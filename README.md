@@ -30,7 +30,7 @@ No compiling required.
 ## Usage
 
 1. Open the plugin via **Plugins → LOOM Transit Maps** or the toolbar button.
-2. **Input tab** — select a QGIS vector layer, a GeoJSON file, or a GTFS zip.
+2. **Input tab** — select a QGIS vector layer, a GeoJSON file, or a GTFS zip. For GTFS, keep **All modes** or tick any combination of transport modes (bus, tram, metro, rail, …).
 3. **Options tab** — choose render style, labels, line widths, ILP solver.
 4. **Output tab** — set a save path and/or load the result directly into QGIS.
 5. Click **Run Pipeline**.

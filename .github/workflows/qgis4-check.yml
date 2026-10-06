@@ -29,9 +29,14 @@ jobs:
 
       - name: Run PyQGIS 4 migration check
         run: |
-          pyqt5_to_pyqt6.py --dry_run --logfile pyqt6_checker.log loom_qgis/
-          # exits non-zero if the script finds anything it would change
-          pyqt5_to_pyqt6.py loom_qgis/
+          pyqt5_to_pyqt6.py --dry_run --logfile pyqt6_checker.log loom_qgis/ || true
+          # The script fixes files in place and can exit 0 even when it changed
+          # something, so compare against a pristine copy instead: any
+          # difference is an incompatibility (the same check plugins.qgis.org
+          # shows in its "Qt6 Check" tab).
+          cp -r loom_qgis /tmp/pristine
+          pyqt5_to_pyqt6.py loom_qgis/ || true
+          diff -ru --exclude=.git /tmp/pristine loom_qgis
 
       - name: Smoke test dialogs under Qt 6
         env:

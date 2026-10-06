@@ -261,6 +261,14 @@ class PipelineRunner:
                     shutil.rmtree(tmp_dir, ignore_errors=True)
             if out is None:
                 return result
+            if b'"Feature"' not in out:
+                modes = cfg.transport_mode.replace(",", ", ")
+                result.errors["gtfs2graph"] = (
+                    f"No routes found in the feed for the selected transport mode(s): {modes}.\n"
+                    "Check which modes the feed contains (route_type in routes.txt), "
+                    "or tick 'All modes'."
+                )
+                return result
             data = out
 
         # ------------------------------------------------------------------
