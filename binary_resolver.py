@@ -68,7 +68,7 @@ def get_loom_binaries() -> Dict[str, str]:
             # Fallback: search PATH
             on_path: Optional[str] = shutil.which(fname) or shutil.which(name)
             if on_path:
-                result[name] = on_path
+                result[name] = os.path.abspath(on_path)
             else:
                 missing.append(name)
 

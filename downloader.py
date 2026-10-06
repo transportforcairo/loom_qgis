@@ -28,7 +28,6 @@ import hashlib
 import os
 import platform
 import stat
-import subprocess
 import tempfile
 import urllib.request
 import zipfile
@@ -73,7 +72,7 @@ _PLATFORM_SUBDIR = {
 
 ALLOWED_SCHEMES = {"http", "https"}
 
-USER_AGENT = "loom_qgis/1.1.0"
+USER_AGENT = "loom_qgis/1.1.1"
 
 # ---------------------------------------------------------------------------
 # Progress callback: (bytes_downloaded, total_bytes_or_None, message)
@@ -113,17 +112,10 @@ _bin_dir = bin_dir
 
 def _is_apple_silicon() -> bool:
     """True on Apple Silicon hardware, even when QGIS itself is an Intel
-    build running under Rosetta 2 (platform.machine() then says x86_64)."""
-    try:
-        out = subprocess.run(
-            ["sysctl", "-n", "hw.optional.arm64"],
-            capture_output=True, text=True, timeout=5,
-        )
-        if out.returncode == 0:
-            return out.stdout.strip() == "1"
-    except (OSError, subprocess.SubprocessError):
-        pass
-    return "ARM64" in platform.version()
+    build running under Rosetta 2 (platform.machine() then says x86_64).
+    The kernel version string is not translated by Rosetta and names the
+    real architecture, e.g. '...RELEASE_ARM64_T6000'."""
+    return "ARM64" in platform.version().upper()
 
 
 def host_platform() -> tuple:
@@ -157,7 +149,8 @@ def _open(url: str, timeout: int):
         raise ValueError(f"Refusing to download from non-https URL: {url}")
     _validate_url(url)
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310 - scheme validated above
+    # Scheme validated above: only https:// URLs reach urlopen.
+    return urllib.request.urlopen(req, timeout=timeout)  # nosec B310
 
 
 def _fetch_checksums() -> Dict[str, str]:
