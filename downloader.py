@@ -72,7 +72,7 @@ _PLATFORM_SUBDIR = {
 
 ALLOWED_SCHEMES = {"http", "https"}
 
-USER_AGENT = "loom_qgis/1.1.1"
+USER_AGENT = "loom_qgis/1.2.0"
 
 # ---------------------------------------------------------------------------
 # Progress callback: (bytes_downloaded, total_bytes_or_None, message)

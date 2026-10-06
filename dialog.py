@@ -10,7 +10,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QLineEdit,
     QPushButton, QFileDialog, QTabWidget, QWidget, QTextEdit,
-    QProgressBar, QMessageBox, QFormLayout, QScrollArea, QFrame,
+    QProgressBar, QMessageBox, QFormLayout, QScrollArea, QFrame, QGridLayout,
 )
 from qgis.PyQt.QtCore import Qt, QThread, QUrl, pyqtSignal
 from qgis.PyQt.QtGui import QDesktopServices, QFont
@@ -24,6 +24,25 @@ except ImportError:
 
 from .runner import PipelineConfig, PipelineResult, PipelineRunner
 from .binary_resolver import check_binaries, get_platform_info
+
+
+# GTFS transport modes offered in the Input tab: (gtfs2graph name, label).
+# Each name also covers the matching extended GTFS route types (e.g. "bus"
+# includes 700-717 and the communal/shared-taxi types 1500, 1501, 1505), as
+# defined by LOOM's GTFS reader.
+GTFS_MODES = [
+    ("bus",        "Bus"),
+    ("tram",       "Tram / light rail"),
+    ("subway",     "Subway / metro"),
+    ("rail",       "Rail"),
+    ("trolleybus", "Trolleybus"),
+    ("coach",      "Coach"),
+    ("ferry",      "Ferry"),
+    ("monorail",   "Monorail"),
+    ("cablecar",   "Cable car"),
+    ("gondola",    "Gondola"),
+    ("funicular",  "Funicular"),
+]
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +158,7 @@ class LoomDialog(QDialog):
 
         if HAS_LAYER_COMBO:
             self.layer_combo = QgsMapLayerComboBox()
-            self.layer_combo.setFilters(QgsMapLayerProxyModel.VectorLayer)
+            self.layer_combo.setFilters(QgsMapLayerProxyModel.Filter.VectorLayer)
             self.layer_combo.setAllowEmptyLayer(True)
             f.addRow("QGIS layer:", self.layer_combo)
         else:
@@ -155,10 +174,22 @@ class LoomDialog(QDialog):
         b2 = QPushButton("Browse"); b2.clicked.connect(self._browse_gtfs); r2.addWidget(b2)
         f.addRow("GTFS zip:", r2)
 
-        self.mode_combo = QComboBox()
-        self.mode_combo.addItems(["all", "tram", "bus", "rail", "subway", "ferry",
-                                   "cablecar", "gondola", "funicular", "coach", "monorail", "trolleybus"])
-        f.addRow("Transport mode:", self.mode_combo)
+        # Transport modes: gtfs2graph accepts a comma-separated list
+        # (e.g. -m bus,tram), so any combination can be selected.
+        modes = QWidget(); ml = QVBoxLayout(modes); ml.setContentsMargins(0, 0, 0, 0)
+        self.mode_all = QCheckBox("All modes")
+        self.mode_all.setChecked(True)
+        self.mode_all.setToolTip("Include every route in the feed. Untick to choose specific modes.")
+        ml.addWidget(self.mode_all)
+        grid = QGridLayout(); grid.setContentsMargins(18, 0, 0, 0)
+        self.mode_checks = {}
+        for i, (code, label) in enumerate(GTFS_MODES):
+            cb = QCheckBox(label); cb.setEnabled(False)
+            self.mode_checks[code] = cb
+            grid.addWidget(cb, i // 3, i % 3)
+        ml.addLayout(grid)
+        self.mode_all.toggled.connect(self._on_mode_all_toggled)
+        f.addRow("Transport modes:", modes)
 
         self.gtfs_prune = _dspin(0, 1, 0, "", "off", "Prune lines occurring less than this fraction (0–1).", dec=2)
         f.addRow("Prune threshold:", self.gtfs_prune)
@@ -458,6 +489,16 @@ class LoomDialog(QDialog):
         p, _ = QFileDialog.getSaveFileName(self, "Save Webmap HTML", "", "HTML (*.html);;All (*)")
         if p: self.webmap_path.setText(p)
 
+    def _on_mode_all_toggled(self, all_on):
+        for cb in self.mode_checks.values():
+            cb.setEnabled(not all_on)
+
+    def _selected_modes(self):
+        """Value for gtfs2graph -m: 'all', a comma-separated list, or ''."""
+        if self.mode_all.isChecked():
+            return "all"
+        return ",".join(code for code, cb in self.mode_checks.items() if cb.isChecked())
+
     def _v(self, spinbox):
         """Return spinbox value or None if at minimum (= 'use default')."""
         v = spinbox.value()
@@ -469,7 +510,7 @@ class LoomDialog(QDialog):
         gtfs = self.gtfs_path.text().strip()
         if gtfs:
             cfg.gtfs_zip_path        = gtfs
-            cfg.transport_mode       = self.mode_combo.currentText()
+            cfg.transport_mode       = self._selected_modes()
             cfg.gtfs_prune_threshold = self._v(self.gtfs_prune)
         else:
             gj = self.geojson_path.text().strip()
@@ -563,6 +604,10 @@ class LoomDialog(QDialog):
         cfg = self._build_config()
         if not cfg.input_geojson and not cfg.gtfs_zip_path:
             QMessageBox.warning(self, "No input", "Please select a QGIS layer, GeoJSON file, or GTFS zip.")
+            return
+        if cfg.gtfs_zip_path and not cfg.transport_mode:
+            QMessageBox.warning(self, "No transport mode",
+                                "Please tick at least one transport mode, or 'All modes'.")
             return
         if cfg.render_engine == "mvt" and not cfg.mvt_path:
             QMessageBox.warning(self, "No MVT path", "Please set the MVT output path in the Output tab.")
