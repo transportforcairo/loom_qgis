@@ -5,12 +5,61 @@ All flags verified against actual --help output from the built binaries.
 """
 
 import os
+import shutil
 import subprocess
+import tempfile
 import threading
+import zipfile
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 from .binary_resolver import get_loom_binaries
+
+
+# Printed by the OS loader when a binary needs a library that isn't there
+# (macOS dyld / Linux ld.so). On Windows a missing DLL shows up as exit code
+# 0xC0000135 (STATUS_DLL_NOT_FOUND) with no stderr.
+_MISSING_LIB_MARKERS = ("Library not loaded", "error while loading shared libraries")
+_WIN_DLL_NOT_FOUND = (0xC0000135, -1073741515)
+
+_MISSING_LIB_HINT = (
+    "\n\nThe LOOM binaries could not start because a library they need is "
+    "missing on this computer. Open the Diagnostics tab and click "
+    "'Re-download binaries…' to install the current self-contained build. "
+    "If that does not help, please report the message above at "
+    "https://github.com/transportforcairo/loom_qgis/issues"
+)
+
+
+def _prepare_gtfs_input(path: str) -> Tuple[str, Optional[str]]:
+    """
+    Return (feed_folder, temp_dir_to_delete).
+
+    gtfs2graph is built without libzip (so the binaries need no external
+    libraries), so a zipped feed is extracted here and gtfs2graph is given the
+    folder. A folder path is passed through unchanged.
+    """
+    if os.path.isdir(path):
+        return path, None
+    if not zipfile.is_zipfile(path):
+        raise ValueError(f"Not a GTFS zip file or folder: {path}")
+
+    tmp = tempfile.mkdtemp(prefix="loom_gtfs_")
+    try:
+        with zipfile.ZipFile(path) as zf:
+            zf.extractall(tmp)  # zipfile strips absolute paths and '..' parts
+
+        # Feeds are sometimes zipped with an enclosing folder.
+        for root, dirs, files in os.walk(tmp):
+            dirs[:] = sorted(d for d in dirs if d != "__MACOSX")
+            if "stops.txt" in files:
+                return root, tmp
+        raise ValueError(
+            f"No stops.txt found in {os.path.basename(path)} — is this a GTFS feed?"
+        )
+    except Exception:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
 
 
 @dataclass
@@ -120,13 +169,19 @@ class PipelineRunner:
             result.cancelled = True
             return None
 
-        with self._lock:
-            self._proc = subprocess.Popen(
-                cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE if capture_stdout else subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-            )
+        try:
+            with self._lock:
+                self._proc = subprocess.Popen(
+                    cmd,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE if capture_stdout else subprocess.DEVNULL,
+                    stderr=subprocess.PIPE,
+                )
+        except OSError as exc:
+            # e.g. wrong CPU architecture ("Bad CPU type in executable"),
+            # missing execute permission, or the file was removed.
+            result.errors[stage_name] = f"Could not start {cmd[0]}:\n{exc}{_MISSING_LIB_HINT}"
+            return None
 
         stdout, stderr = self._proc.communicate(input=input_data)
         returncode = self._proc.returncode
@@ -144,11 +199,16 @@ class PipelineRunner:
             if returncode == 0:
                 result.warnings[stage_name] = decoded
             else:
+                if any(m in decoded for m in _MISSING_LIB_MARKERS):
+                    decoded += _MISSING_LIB_HINT
                 result.errors[stage_name] = decoded
                 return None
 
         if returncode != 0:
-            result.errors[stage_name] = f"exited with code {returncode}"
+            msg = f"exited with code {returncode}"
+            if returncode in _WIN_DLL_NOT_FOUND:
+                msg += " (a required DLL was not found)" + _MISSING_LIB_HINT
+            result.errors[stage_name] = msg
             return None
 
         return stdout if capture_stdout else b""
@@ -173,10 +233,19 @@ class PipelineRunner:
         # ------------------------------------------------------------------
         if cfg.gtfs_zip_path:
             _p(5, "Converting GTFS → GeoJSON line graph…")
-            cmd = [bins["gtfs2graph"], "-m", cfg.transport_mode, cfg.gtfs_zip_path]
-            if cfg.gtfs_prune_threshold is not None:
-                cmd += ["-p", str(cfg.gtfs_prune_threshold)]
-            out = self._run_stage(cmd, b"", "gtfs2graph", result)
+            try:
+                feed_dir, tmp_dir = _prepare_gtfs_input(cfg.gtfs_zip_path)
+            except (OSError, ValueError, zipfile.BadZipFile) as exc:
+                result.errors["gtfs2graph"] = f"Could not read GTFS input:\n{exc}"
+                return result
+            try:
+                cmd = [bins["gtfs2graph"], "-m", cfg.transport_mode, feed_dir]
+                if cfg.gtfs_prune_threshold is not None:
+                    cmd += ["-p", str(cfg.gtfs_prune_threshold)]
+                out = self._run_stage(cmd, b"", "gtfs2graph", result)
+            finally:
+                if tmp_dir:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
             if out is None:
                 return result
             data = out

@@ -1,0 +1,4 @@
+# Left out of the plugin ZIP built with `git archive`
+.github         export-ignore
+.gitignore      export-ignore
+.gitattributes  export-ignore

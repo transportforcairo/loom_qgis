@@ -1,0 +1,81 @@
+name: QGIS 4 compatibility
+
+# Runs inside QGIS's official pyqgis4-checker image (QGIS 4 / Qt 6):
+#   1. the PyQt5 -> PyQt6 migration checker (same tool plugins.qgis.org runs)
+#   2. an offscreen smoke test that imports the plugin and builds its dialogs
+#      against the real qgis.PyQt (Qt 6) bindings.
+
+on:
+  push:
+    branches: [main]
+    paths: ["**.py", "metadata.txt", ".github/workflows/qgis4-check.yml"]
+  pull_request:
+    paths: ["**.py", "metadata.txt", ".github/workflows/qgis4-check.yml"]
+
+jobs:
+  qt6:
+    name: PyQGIS 4 checker + smoke test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    container:
+      image: ghcr.io/qgis/pyqgis4-checker:main-ubuntu
+
+    steps:
+      - name: Get source code
+        uses: actions/checkout@v6
+        with:
+          path: loom_qgis
+
+      - name: Run PyQGIS 4 migration check
+        run: |
+          pyqt5_to_pyqt6.py --dry_run --logfile pyqt6_checker.log loom_qgis/
+          # exits non-zero if the script finds anything it would change
+          pyqt5_to_pyqt6.py loom_qgis/
+
+      - name: Smoke test dialogs under Qt 6
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python3 - <<'EOF'
+          from qgis.core import QgsApplication
+          from qgis.PyQt.QtCore import QT_VERSION_STR, QTimer
+          from qgis.PyQt.QtWidgets import QMainWindow
+          print("Qt", QT_VERSION_STR)
+          app = QgsApplication([], True); app.initQgis()
+
+          class Bar:
+              def pushMessage(self, *a, **k): pass
+          class Iface:
+              def __init__(self): self.w = QMainWindow()
+              def mainWindow(self): return self.w
+              def messageBar(self): return Bar()
+              def addPluginToMenu(self, *a): pass
+              def addToolBarIcon(self, *a): pass
+              def removePluginMenu(self, *a): pass
+              def removeToolBarIcon(self, *a): pass
+
+          import loom_qgis
+          from loom_qgis.download_dialog import DownloadDialog
+          from loom_qgis.dialog import LoomDialog
+
+          iface = Iface()
+          plugin = loom_qgis.classFactory(iface)
+          plugin.initGui()
+          DownloadDialog()._show_manual_instructions()
+          dlg = LoomDialog(iface)
+          QTimer.singleShot(200, lambda: [w.reject() for w in app.topLevelWidgets()
+                                          if isinstance(w, DownloadDialog)])
+          dlg._on_redownload()          # exercises QDialog.exec()
+          plugin.unload()
+          app.exitQgis()
+          print("Dialogs built OK under Qt 6")
+          EOF
+
+      - name: Upload checker report
+        uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: pyqgis4-checker-report
+          path: pyqt6_checker.log
+          retention-days: 7
