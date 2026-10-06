@@ -10,11 +10,11 @@ from qgis.PyQt.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel,
     QComboBox, QCheckBox, QDoubleSpinBox, QSpinBox, QLineEdit,
     QPushButton, QFileDialog, QTabWidget, QWidget, QTextEdit,
-    QProgressBar, QMessageBox, QFormLayout, QScrollArea,
+    QProgressBar, QMessageBox, QFormLayout, QScrollArea, QFrame,
 )
 from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
 from qgis.PyQt.QtGui import QFont
-from qgis.core import QgsProject, QgsVectorLayer, QgsMapLayerProxyModel
+from qgis.core import Qgis, QgsProject, QgsVectorLayer, QgsMapLayerProxyModel
 
 try:
     from qgis.gui import QgsMapLayerComboBox
@@ -68,7 +68,7 @@ def _ispin(lo, hi, val, suffix="", special="", tip=""):
 
 def _scrolled(w):
     s = QScrollArea(); s.setWidgetResizable(True); s.setWidget(w)
-    s.setFrameShape(QScrollArea.NoFrame); return s
+    s.setFrameShape(QFrame.Shape.NoFrame); return s
 
 def _cb(label, tip=""):
     w = QCheckBox(label)
@@ -95,10 +95,10 @@ class LoomDialog(QDialog):
         root = QVBoxLayout(self); root.setSpacing(8)
 
         title = QLabel("LOOM Transit Map Generator")
-        title.setAlignment(Qt.AlignCenter)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         f = title.font(); f.setPointSize(14); f.setBold(True); title.setFont(f)
         sub = QLabel("Powered by LOOM · University of Freiburg · Windows port by Transport for Cairo")
-        sub.setAlignment(Qt.AlignCenter); sub.setStyleSheet("color: gray; font-size: 10px;")
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter); sub.setStyleSheet("color: gray; font-size: 10px;")
         root.addWidget(title); root.addWidget(sub)
 
         tabs = QTabWidget()
@@ -112,7 +112,7 @@ class LoomDialog(QDialog):
         root.addWidget(tabs)
 
         self.progress_bar   = QProgressBar(); self.progress_bar.setVisible(False)
-        self.progress_label = QLabel(""); self.progress_label.setAlignment(Qt.AlignCenter)
+        self.progress_label = QLabel(""); self.progress_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(self.progress_bar); root.addWidget(self.progress_label)
 
         row = QHBoxLayout()
@@ -235,6 +235,10 @@ class LoomDialog(QDialog):
         ig = QGroupBox("ILP Options (only apply to ilp / comb methods)")
         if_ = QFormLayout(ig)
         self.loom_ilp_solver     = QComboBox(); self.loom_ilp_solver.addItems(["auto", "glpk", "cbc", "gurobi"])
+        self.loom_ilp_solver.setToolTip(
+            "auto = best solver compiled into the installed binaries.\n"
+            "The pre-built binaries include GLPK on every platform; CBC is included on Windows only.\n"
+            "Gurobi needs a LOOM build compiled against a licensed Gurobi installation.")
         self.loom_ilp_time_limit = _ispin(-1, 86400, -1, "s", "unlimited", "ILP solve time limit. -1 = unlimited.")
         self.loom_ilp_threads    = _ispin(0, 64, 0, "", "solver default", "ILP solver threads. 0 = solver default.")
         if_.addRow("ILP solver:", self.loom_ilp_solver)
@@ -419,8 +423,14 @@ class LoomDialog(QDialog):
     # ------------------------------------------------------------------
 
     def _check_binaries_status(self):
+        from .downloader import BINARIES_REF, binaries_present, installed_ref
         status = check_binaries()
-        self.diag_text.setPlainText("\n".join(f"  {'✔' if ok else '✘'}  {n}" for n, ok in status.items()))
+        lines = [f"  {'✔' if ok else '✘'}  {n}" for n, ok in status.items()]
+        if binaries_present():
+            ref = installed_ref() or "unknown (older build)"
+            lines.append("")
+            lines.append(f"  Installed build: {ref}   (this plugin version expects {BINARIES_REF})")
+        self.diag_text.setPlainText("\n".join(lines))
 
     def _browse_geojson(self):
         p, _ = QFileDialog.getOpenFileName(self, "Select GeoJSON", "", "GeoJSON (*.geojson *.json)")
@@ -613,7 +623,8 @@ class LoomDialog(QDialog):
                     from .webmap_generator import generate as generate_webmap
                     generate_webmap(result.svg_output, wm_path)
                     self.iface.messageBar().pushMessage(
-                        "LOOM", f"Webmap written to: {wm_path}", level=0, duration=8
+                        "LOOM", f"Webmap written to: {wm_path}",
+                        level=Qgis.MessageLevel.Info, duration=8
                     )
                     if self.webmap_open.isChecked() and os.path.isfile(wm_path):
                         import subprocess, sys
@@ -627,7 +638,8 @@ class LoomDialog(QDialog):
                     QMessageBox.warning(self, "Webmap error", f"Failed to generate webmap:\n{e}")
 
         if result.mvt_path:
-            self.iface.messageBar().pushMessage("LOOM", f"MVT tiles written to: {result.mvt_path}", level=0, duration=8)
+            self.iface.messageBar().pushMessage("LOOM", f"MVT tiles written to: {result.mvt_path}",
+                                                level=Qgis.MessageLevel.Info, duration=8)
 
         QMessageBox.information(self, "Done", "Transit map generated successfully!")
 
@@ -635,4 +647,4 @@ class LoomDialog(QDialog):
         from .download_dialog import DownloadDialog
         dlg = DownloadDialog(parent=self, auto_start=False)
         dlg.download_complete.connect(self._check_binaries_status)
-        dlg.exec_(); self._check_binaries_status()
+        dlg.exec(); self._check_binaries_status()

@@ -15,7 +15,10 @@ from qgis.PyQt.QtWidgets import (
 from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
 from qgis.PyQt.QtGui  import QFont
 
-from .downloader import download_binaries, binaries_present, BINARIES_REPO
+from .downloader import (
+    download_binaries, binaries_present, binaries_outdated, bin_dir,
+    BINARIES_REPO, BINARIES_REF,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +58,7 @@ class DownloadDialog(QDialog):
         self.setWindowTitle("LOOM — Download Binaries")
         self.setMinimumWidth(500)
         self.setMinimumHeight(360)
-        self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
 
         self._build_ui()
 
@@ -81,15 +84,30 @@ class DownloadDialog(QDialog):
         # Platform info
         system  = platform.system()
         machine = platform.machine()
+        if binaries_outdated():
+            intro = (
+                f"The LOOM binaries installed for your platform "
+                f"(<b>{system} {machine}</b>) are from an older build. "
+                f"An updated, self-contained build (<code>{BINARIES_REF}</code>) is available."
+            )
+        elif binaries_present():
+            intro = (
+                f"LOOM binaries build <code>{BINARIES_REF}</code> is installed for your "
+                f"platform (<b>{system} {machine}</b>). Download again to repair the install."
+            )
+        else:
+            intro = (
+                f"No pre-built LOOM binaries were found for your platform "
+                f"(<b>{system} {machine}</b>)."
+            )
         info = QLabel(
-            f"No pre-built LOOM binaries were found for your platform "
-            f"(<b>{system} {machine}</b>).\n\n"
+            f"{intro}<br><br>"
             f"Click <b>Download</b> to fetch them automatically from GitHub "
             f"(<code>{BINARIES_REPO}</code>).<br>"
-            "This is a one-time download (~10–80 MB depending on platform)."
+            "This is a one-time download (~3–35 MB depending on platform)."
         )
         info.setWordWrap(True)
-        info.setTextFormat(Qt.RichText)
+        info.setTextFormat(Qt.TextFormat.RichText)
         root.addWidget(info)
 
         # Progress bar
@@ -101,7 +119,7 @@ class DownloadDialog(QDialog):
 
         # Status label
         self.status_label = QLabel("")
-        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setWordWrap(True)
         root.addWidget(self.status_label)
 
@@ -110,7 +128,7 @@ class DownloadDialog(QDialog):
         self.log.setReadOnly(True)
         self.log.setFont(QFont("Courier New", 9))
         self.log.setVisible(False)
-        self.log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.log.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         root.addWidget(self.log)
 
         # Buttons
@@ -136,7 +154,7 @@ class DownloadDialog(QDialog):
         manual_label = QLabel(
             "<small><a href='#'>Where do I get binaries manually?</a></small>"
         )
-        manual_label.setTextFormat(Qt.RichText)
+        manual_label.setTextFormat(Qt.TextFormat.RichText)
         manual_label.setOpenExternalLinks(False)
         manual_label.linkActivated.connect(self._show_manual_instructions)
         root.addWidget(manual_label)
@@ -195,15 +213,13 @@ class DownloadDialog(QDialog):
         self.log.setPlainText(
             "Manual binary installation\n"
             "==========================\n\n"
-            f"1. Go to: https://github.com/{BINARIES_REPO}\n"
+            f"1. Go to: https://github.com/{BINARIES_REPO}/tree/{BINARIES_REF}\n"
             "2. Download the ZIP for your platform:\n"
-            "     Windows : loom-binaries-windows-x64.zip\n"
-            "     macOS   : loom-binaries-macos-arm64.zip\n"
-            "     Linux   : loom-binaries-linux-x64.zip\n\n"
-            "3. Extract the contents into:\n"
-            "     <QGIS plugins folder>/loom_qgis/plugin/bin/windows/\n"
-            "     <QGIS plugins folder>/loom_qgis/plugin/bin/macos/\n"
-            "     <QGIS plugins folder>/loom_qgis/plugin/bin/linux/\n\n"
+            "     Windows (x64)          : loom-binaries-windows-x64.zip\n"
+            "     macOS (Apple Silicon)  : loom-binaries-macos-arm64.zip\n"
+            "     Linux (x64)            : loom-binaries-linux-x64.zip\n\n"
+            "3. Extract the files (flat, no sub-folder) into:\n"
+            f"     {bin_dir()}\n\n"
             "4. Restart QGIS.\n\n"
             "Alternatively, if you have LOOM compiled and on your system PATH,\n"
             "the plugin will find and use those binaries automatically."

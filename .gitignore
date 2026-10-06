@@ -1,0 +1,10 @@
+# LOOM binaries downloaded at runtime (never commit them)
+bin/
+
+# Python
+__pycache__/
+*.pyc
+
+# Locally built plugin packages
+dist/
+*.zip

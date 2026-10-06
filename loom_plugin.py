@@ -12,7 +12,8 @@ from qgis.PyQt.QtWidgets import QAction
 from qgis.PyQt.QtGui     import QIcon
 from qgis.core           import QgsApplication
 
-from .downloader import binaries_present
+from .binary_resolver import check_binaries
+from .downloader import binaries_present, binaries_outdated
 
 
 class LoomPlugin:
@@ -21,6 +22,7 @@ class LoomPlugin:
         self.iface   = iface
         self.action  = None
         self.dialog  = None
+        self._update_offered = False
 
     def initGui(self):
         icon_path = os.path.join(os.path.dirname(__file__), "resources", "icon.png")
@@ -45,16 +47,22 @@ class LoomPlugin:
     def run(self):
         if not binaries_present():
             self._show_download_dialog()
+        elif binaries_outdated() and not self._update_offered:
+            # Binaries from an older build (e.g. the pre-1.1 macOS/Linux
+            # builds that needed Homebrew/apt libraries). Offer the update
+            # once per QGIS session; skipping keeps the current binaries.
+            self._update_offered = True
+            self._show_download_dialog()
         else:
             self._show_main_dialog()
 
     def _show_download_dialog(self):
         from .download_dialog import DownloadDialog
         dlg = DownloadDialog(parent=self.iface.mainWindow(), auto_start=False)
-        dlg.exec_()
+        dlg.exec()
         # Proceed to main dialog whether they downloaded or skipped
-        # (skip case: maybe binaries are on PATH)
-        if dlg.was_successful() or binaries_present():
+        # (skip case: existing binaries, or LOOM built from source on PATH)
+        if dlg.was_successful() or binaries_present() or all(check_binaries().values()):
             self._show_main_dialog()
 
     def _show_main_dialog(self):
