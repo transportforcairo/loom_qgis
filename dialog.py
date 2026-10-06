@@ -12,8 +12,8 @@ from qgis.PyQt.QtWidgets import (
     QPushButton, QFileDialog, QTabWidget, QWidget, QTextEdit,
     QProgressBar, QMessageBox, QFormLayout, QScrollArea, QFrame,
 )
-from qgis.PyQt.QtCore import Qt, QThread, pyqtSignal
-from qgis.PyQt.QtGui import QFont
+from qgis.PyQt.QtCore import Qt, QThread, QUrl, pyqtSignal
+from qgis.PyQt.QtGui import QDesktopServices, QFont
 from qgis.core import Qgis, QgsProject, QgsVectorLayer, QgsMapLayerProxyModel
 
 try:
@@ -65,6 +65,12 @@ def _ispin(lo, hi, val, suffix="", special="", tip=""):
     if special: w.setSpecialValueText(special)
     if tip: w.setToolTip(tip)
     return w
+
+def _open_with_default_app(path):
+    """Open a local file (SVG / HTML) in the user's default application.
+    Uses Qt instead of os.startfile / open / xdg-open, so no external process
+    is started by the plugin itself."""
+    QDesktopServices.openUrl(QUrl.fromLocalFile(os.path.abspath(path)))
 
 def _scrolled(w):
     s = QScrollArea(); s.setWidgetResizable(True); s.setWidget(w)
@@ -600,13 +606,7 @@ class LoomDialog(QDialog):
                 with open(out_path, "w", encoding="utf-8") as fh:
                     fh.write(result.svg_output)
             if self.open_after.isChecked() and out_path and os.path.isfile(out_path):
-                import subprocess, sys
-                if sys.platform == "win32":
-                    os.startfile(out_path)
-                elif sys.platform == "darwin":
-                    subprocess.Popen(["open", out_path])
-                else:
-                    subprocess.Popen(["xdg-open", out_path])
+                _open_with_default_app(out_path)
 
             # ── Webmap ────────────────────────────────────────────────
             if self.webmap_enabled.isChecked():
@@ -627,13 +627,7 @@ class LoomDialog(QDialog):
                         level=Qgis.MessageLevel.Info, duration=8
                     )
                     if self.webmap_open.isChecked() and os.path.isfile(wm_path):
-                        import subprocess, sys
-                        if sys.platform == "win32":
-                            os.startfile(wm_path)
-                        elif sys.platform == "darwin":
-                            subprocess.Popen(["open", wm_path])
-                        else:
-                            subprocess.Popen(["xdg-open", wm_path])
+                        _open_with_default_app(wm_path)
                 except Exception as e:
                     QMessageBox.warning(self, "Webmap error", f"Failed to generate webmap:\n{e}")
 

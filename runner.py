@@ -6,14 +6,15 @@ All flags verified against actual --help output from the built binaries.
 
 import os
 import shutil
-import subprocess
+# Running the LOOM command-line tools is this plugin's purpose.
+import subprocess  # nosec B404
 import tempfile
 import threading
 import zipfile
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Optional, Tuple
 
-from .binary_resolver import get_loom_binaries
+from .binary_resolver import BINARY_NAMES, get_loom_binaries
 
 
 # Printed by the OS loader when a binary needs a library that isn't there
@@ -157,8 +158,9 @@ class PipelineRunner:
             if self._proc:
                 try:
                     self._proc.kill()
-                except Exception:
-                    pass
+                except OSError:
+                    # The process already exited between the check and kill().
+                    self._proc = None
 
     def _is_cancelled(self):
         with self._lock:
@@ -169,9 +171,20 @@ class PipelineRunner:
             result.cancelled = True
             return None
 
+        # Only ever run one of the LOOM tools, by absolute path, as resolved
+        # by binary_resolver (the plugin's own bin/ folder or PATH).
+        exe = cmd[0]
+        tool = os.path.splitext(os.path.basename(exe))[0]
+        if not os.path.isabs(exe) or tool not in BINARY_NAMES:
+            result.errors[stage_name] = f"Refusing to run unexpected program: {exe}"
+            return None
+
         try:
             with self._lock:
-                self._proc = subprocess.Popen(
+                # Arguments are a list (no shell), the executable is a vetted
+                # LOOM binary and the remaining items are option values from the
+                # dialog and file paths chosen by the user.
+                self._proc = subprocess.Popen(  # nosec B603
                     cmd,
                     stdin=subprocess.PIPE,
                     stdout=subprocess.PIPE if capture_stdout else subprocess.DEVNULL,

@@ -1,0 +1,26 @@
+name: Security scan (Bandit)
+
+# plugins.qgis.org runs Bandit on every uploaded version and BLOCKS the
+# version if it reports anything. Running it here catches that before upload.
+# Justified exceptions are marked inline with `# nosec <TEST_ID>`, with the
+# reason in a comment on the line above.
+
+on:
+  push:
+    branches: [main]
+    paths: ["**.py", ".github/workflows/security.yml"]
+  pull_request:
+    paths: ["**.py", ".github/workflows/security.yml"]
+
+jobs:
+  bandit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Bandit
+        run: |
+          python3 -m pip install --quiet bandit
+          python3 -m bandit -r . --exclude ./.github
